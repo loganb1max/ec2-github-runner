@@ -1,9 +1,12 @@
 const AWS = require('aws-sdk');
 const core = require('@actions/core');
+const github = require('@actions/github');
 const config = require('./config');
 
 // User data scripts are run as the root user
 function buildUserDataScript(githubRegistrationToken, label) {
+  const githubRepoUrl = github.context.payload.repository.html_url;
+
   if (config.input.runnerHomeDir) {
     // If runner home directory is specified, we expect the actions-runner software (and dependencies)
     // to be pre-installed in the AMI, so we simply cd into that directory and then start the runner
@@ -11,7 +14,7 @@ function buildUserDataScript(githubRegistrationToken, label) {
       '#!/bin/bash',
       `cd "${config.input.runnerHomeDir}"`,
       'export RUNNER_ALLOW_RUNASROOT=1',
-      `./config.sh --url https://github.com/${config.githubContext.owner}/${config.githubContext.repo} --token ${githubRegistrationToken} --labels ${label}`,
+      `./config.sh --url ${githubRepoUrl} --token ${githubRegistrationToken} --labels ${label}`,
       './run.sh',
     ];
   } else {
@@ -19,10 +22,11 @@ function buildUserDataScript(githubRegistrationToken, label) {
       '#!/bin/bash',
       'mkdir actions-runner && cd actions-runner',
       'case $(uname -m) in aarch64) ARCH="arm64" ;; amd64|x86_64) ARCH="x64" ;; esac && export RUNNER_ARCH=${ARCH}',
-      'curl -O -L https://github.com/actions/runner/releases/download/v2.299.1/actions-runner-linux-${RUNNER_ARCH}-2.299.1.tar.gz',
-      'tar xzf ./actions-runner-linux-${RUNNER_ARCH}-2.299.1.tar.gz',
+      'export LASTEST_RUNNER_VERSION=$(curl -L https://api.github.com/repos/actions/runner/releases/latest | jq .name -r)',
+      'curl -O -L https://github.com/actions/runner/releases/download/${LASTEST_RUNNER_VERSION}/actions-runner-linux-${RUNNER_ARCH}-${LASTEST_RUNNER_VERSION:1}.tar.gz',
+      'tar xzf ./actions-runner-linux-${RUNNER_ARCH}-${LASTEST_RUNNER_VERSION:1}.tar.gz',
       'export RUNNER_ALLOW_RUNASROOT=1',
-      `./config.sh --url https://github.com/${config.githubContext.owner}/${config.githubContext.repo} --token ${githubRegistrationToken} --labels ${label}`,
+      `./config.sh --url ${githubRepoUrl} --token ${githubRegistrationToken} --labels ${label}`,
       './run.sh',
     ];
   }
